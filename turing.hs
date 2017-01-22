@@ -1,49 +1,68 @@
 import Debug.Trace
--- should generalize this stuff so don't have to copy paste code between DFA and TM impl in haskell
-data State = State { name :: String }
+-- TM, state, tape -> state, tape, direction
+data Direction = Lft | Rt
+instance Eq Direction where
+    Lft == Lft = True
+    Rt == Rt = True
+    Lft == Rt = False
+    Rt == Lft = False
+type Input = (State, Char)
+type Output = (State, Char, Direction)
+data State = State { name :: String } -- make this Int so that can use array/matrix for lookup
 instance Show State where
     show s = name s
--- this could be more readable...
--- use type variable instead perhaps 
--- maybe should also have type for configuration
-type Input = 
-type TransitionFunction = Input -> Output
-data Direction = Left | Right
-instance Show Direction where
-    show Left = '<'
-    show Right = '>'
+instance Eq State where
+    st1 == st2 = (name st1) == (name st2)
 -- states and sigma doesn't actually do anything yet
 -- could use it to add an integrity check on input
--- initial and final not used yet, should be used to output "accept" or "reject"
 data TM = TM { states :: [State]
                , sigma :: String
-               , gamma :: String
-               , delta :: State -> Char -> Char -> (State, Char, Direction, String)
+               , delta :: Input -> Output
                , initial :: State
-               , final :: State
-               }
+               , final :: State -- this should be changed to [State]
+             }
 -- could use 2D array instead for better runtime
 mySplit :: Char -> String-> [String]
 mySplit c lst = 
     foldr (\a (x:xs) -> if a == c then ([]:x:xs) else ((a:x):xs))
     [""] lst
-makeTransition :: [String] -> (State,Char,Char,State,Char,Direction)
-makeTransition (a:(b:bs):(c:cs):d:(e:es):(f:fs):xs) = (State a,b,c,State d,e, if f == '<' then Left else Right)
-transitionList :: [(State,Char,Char,State,Direction)] -> State -> Char -> Char -> (State,Char,Direction)
+makeTransition :: [String] -> (Input,Output)
+makeTransition (a:(b:bs):c:(d:ds):(e:es):xs) = ((State a,b),(State c,d,if e == '>' then Rt else Lft))
 -- https://www.reddit.com/r/haskell/comments/1psdai/is_there_a_foldwhile_function_in_haskell/ 
-transitionList lst st c tt =
-    foldr (\ (tstate,tinput,ttape,toutput,twrite,tdir) b -> 
-                if tstate == name st && tinput == c && ttape == tt
-                    then (toutput,twrite,tdir)
+-- actually this is just scanl or scanr
+transitionList :: [(Input,Output)] -> Input -> Output
+transitionList lst input =
+    foldr (\ (lstin,lstout) b ->
+                if lstin == input
+                    then lstout
                     else b)
-          (State "reject") lst
-makeDelta :: String -> State -> Char -> Char -> (State, Char, Direction)
+          (State "reject",'x',Rt) lst
+makeDelta :: String -> Input -> Output
 makeDelta inputString = transitionList .
     map (makeTransition . mySplit ',') $ mySplit '\n' inputString
-runTM :: TM -> String -> State
-runTM m = foldr (\a b -> (delta m) b a) (initial m)
+-- convert Output to an effect on configuration
+-- then convert configuration to Input
+-- might need scanl/r here too
+runTM :: TM -> String -> String
+runTM m input = 
+    let configuration = (initial m, "", input) :: (State,String,String)
+        d = delta m
+        recursTM :: (State,String,String) -> (State,String,String)
+        recursTM (state,bf,af) =
+            let (st,c,dir) = d (state,(if af == [] then ' ' else head af))
+                as = if af == [] then [] else tail af
+                (tst,tbf,taf) =  if dir == Lft then (st
+                                                     ,if bf == [] then [] else (init bf)
+                                                     ,(if bf == [] then [] else [last bf]) ++ [c] ++ as)
+                                 else (st, bf ++ [c], as)
+            in trace (name tst) $ if tst == (final m) || name tst == "reject" then (tst,"","") else recursTM (tst,tbf,taf)
+        (out_state,bef,aft) = recursTM (initial m, "", input)
+    in  if out_state == final m then "accept" else "reject"
+-- could run as turing.exe < input.txt
 main = do 
-    let inputString = "q0,0,q1\nq1,0,q2"
-    print $ runDFA (DFA [State "q0", State "q1", State "q2"] "abcd" (makeDelta inputString) (State "q0") (State "q2"))
-                    "00"
-    --print $ runDFA (DFA [] "" (makeDelta inputString) (State "q0") (State "q2"))
+    let inputString = "0,1,1,1,>\n1,2,2,2,>\n2,3,3,3,<\n3,4,4,4,<"
+    -- let inputString = getContents
+    -- getContents >>= inputString
+    --print $ runTM (TM [State "q0", State "q1", State "q2"] "abcd" (makeDelta inputString) (State "q0") (State "q2"))
+    print $ runTM (TM [] "" (makeDelta inputString) (State "0") (State "4"))
+                    "1234"
