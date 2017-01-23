@@ -21,15 +21,17 @@ data TM = TM { states :: [State]
                , initial :: State
                , final :: State -- this should be changed to [State]
              }
--- could use 2D array instead for better runtime
+-- use 2D array instead for better runtime
 mySplit :: Char -> String-> [String]
 mySplit c lst = 
     foldr (\a (x:xs) -> if a == c then ([]:x:xs) else ((a:x):xs))
     [""] lst
 makeTransition :: [String] -> (Input,Output)
-makeTransition (a:(b:bs):c:(d:ds):(e:es):xs) = ((State a,b),(State c,d,if e == '>' then Rt else Lft))
--- https://www.reddit.com/r/haskell/comments/1psdai/is_there_a_foldwhile_function_in_haskell/ 
--- actually this is just scanl or scanr
+makeTransition lst@(a:(b:bs):c:(d:ds):(e:es):xs) = ((State a,b),(State c,d,if e == '>' then Rt else Lft))
+-- laziness is weird man
+-- i make unspecified transitions go to reject
+makeTransition _ = ((State "reject",'x'),(State "reject",'x',Rt))
+-- use scanl or scanr instead
 transitionList :: [(Input,Output)] -> Input -> Output
 transitionList lst input =
     foldr (\ (lstin,lstout) b ->
@@ -40,9 +42,6 @@ transitionList lst input =
 makeDelta :: String -> Input -> Output
 makeDelta inputString = transitionList .
     map (makeTransition . mySplit ',') $ mySplit '\n' inputString
--- convert Output to an effect on configuration
--- then convert configuration to Input
--- might need scanl/r here too
 runTM :: TM -> String -> String
 runTM m input = 
     let configuration = (initial m, "", input) :: (State,String,String)
@@ -50,12 +49,14 @@ runTM m input =
         recursTM :: (State,String,String) -> (State,String,String)
         recursTM (state,bf,af) =
             let (st,c,dir) = d (state,(if af == [] then ' ' else head af))
-                as = if af == [] then [] else tail af
+                as = if af == [] then [' '] else tail af
                 (tst,tbf,taf) =  if dir == Lft then (st
                                                      ,if bf == [] then [] else (init bf)
                                                      ,(if bf == [] then [] else [last bf]) ++ [c] ++ as)
                                  else (st, bf ++ [c], as)
-            in trace (bf ++ "(q" ++ (name tst) ++ ")" ++ af) $ if tst == (final m) || name tst == "reject" then (tst,"","") else recursTM (tst,tbf,taf)
+            --use state monad for ocunter =_=
+            --in trace (iter ++ ": " ++ bf ++ "(q" ++ (name state) ++ ")" ++ af) $ if tst == (final m) || name tst == "reject" then (tst,"","") else recursTM (tst,tbf,taf)
+            in trace (bf ++ "(q" ++ (name state) ++ ")" ++ af) $ if tst == (final m) || name tst == "reject" then (tst,"","") else recursTM (tst,tbf,taf)
         (out_state,bef,aft) = recursTM (initial m, "", input)
     in  if out_state == final m then "accept" else "reject"
 -- could run as turing.exe < input.txt
@@ -65,4 +66,4 @@ main = do
     inputString <- getContents 
     print $ init inputString
     --print $ runTM (TM [State "q0", State "q1", State "q2"] "abcd" (makeDelta inputString) (State "q0") (State "q2"))
-    print $ runTM (TM [] "" (makeDelta inputString) (State "0") (State "accept")) "abc"
+    print $ runTM (TM [] "" (makeDelta inputString) (State "0") (State "accept")) "aaabbbccccccccc"
