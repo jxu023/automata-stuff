@@ -1,4 +1,9 @@
 import Debug.Trace
+import System.IO.Unsafe
+prettyTrace :: String -> a -> a
+prettyTrace str expr = unsafePerformIO $ do
+    putStr $ str ++ " yields "
+    return expr
 -- TM, state, tape -> state, tape, direction
 data Direction = Lft | Rt
 instance Eq Direction where
@@ -56,14 +61,15 @@ runTM m input =
                                  else (st, bf ++ [c], as)
             --use state monad for ocunter =_=
             --in trace (iter ++ ": " ++ bf ++ "(q" ++ (name state) ++ ")" ++ af) $ if tst == (final m) || name tst == "reject" then (tst,"","") else recursTM (tst,tbf,taf)
+            --in prettyTrace (bf ++ "(q" ++ (name state) ++ ")" ++ af) $ if tst == (final m) || name tst == "reject" then (tst,"","") else recursTM (tst,tbf,taf)
             in trace (bf ++ "(q" ++ (name state) ++ ")" ++ af) $ if tst == (final m) || name tst == "reject" then (tst,"","") else recursTM (tst,tbf,taf)
         (out_state,bef,aft) = recursTM (initial m, "", input)
     in  if out_state == final m then "accept" else "reject"
 -- could run as turing.exe < input.txt
 main = do 
     -- accept w = a^i b^j c^k | k = i*j
-    --let inputString = "0,1,1,1,>\n1,2,2,2,>\n2,3,3,3,<\n3,4,4,4,<"
-    inputString <- getContents 
-    print $ init inputString
-    --print $ runTM (TM [State "q0", State "q1", State "q2"] "abcd" (makeDelta inputString) (State "q0") (State "q2"))
-    print $ runTM (TM [] "" (makeDelta inputString) (State "0") (State "accept")) "aaabbbccccccccc"
+    --let transitionString = "0,1,1,1,>\n1,2,2,2,>\n2,3,3,3,<\n3,4,4,4,<"
+    transitionString <- getContents 
+    print $ init transitionString
+    --print $ runTM (TM [State "q0", State "q1", State "q2"] "abcd" (makeDelta transitionString) (State "q0") (State "q2"))
+    print $ runTM (TM [] "" (makeDelta transitionString) (State "0") (State "accept")) ""
