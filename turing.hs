@@ -55,14 +55,14 @@ runTM m input =
                                                      ,if bf == [] then [] else (init bf)
                                                      ,(if bf == [] then [] else [last bf]) ++ [c] ++ as)
                                  else (st, bf ++ [c], as)
-            in trace (name tst) $ if tst == (final m) || name tst == "reject" then (tst,"","") else recursTM (tst,tbf,taf)
+            in trace (bf ++ "(q" ++ (name tst) ++ ")" ++ af) $ if tst == (final m) || name tst == "reject" then (tst,"","") else recursTM (tst,tbf,taf)
         (out_state,bef,aft) = recursTM (initial m, "", input)
     in  if out_state == final m then "accept" else "reject"
 -- could run as turing.exe < input.txt
 main = do 
-    let inputString = "0,1,1,1,>\n1,2,2,2,>\n2,3,3,3,<\n3,4,4,4,<"
-    -- let inputString = getContents
-    -- getContents >>= inputString
+    -- accept w = a^i b^j c^k | k = i*j
+    --let inputString = "0,1,1,1,>\n1,2,2,2,>\n2,3,3,3,<\n3,4,4,4,<"
+    inputString <- getContents 
+    print $ init inputString
     --print $ runTM (TM [State "q0", State "q1", State "q2"] "abcd" (makeDelta inputString) (State "q0") (State "q2"))
-    print $ runTM (TM [] "" (makeDelta inputString) (State "0") (State "4"))
-                    "1234"
+    print $ runTM (TM [] "" (makeDelta inputString) (State "0") (State "accept")) "abc"
